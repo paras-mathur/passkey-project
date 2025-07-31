@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Passkey Demo</title>
+</head>
+<body>
+  <h1>Passkey Demo</h1>
+  <input type="text" id="username" placeholder="Enter username" />
+  <button onclick="register()">Register</button>
+  <button onclick="login()">Login</button>
+
+  <script>
+      function base64urlToBase64(base64url) {
+          // Replace URL-safe characters
+          let base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+
+          // Pad with '=' to make length a multiple of 4
+          while (base64.length % 4) {
+            base64 += '=';
+          }
+
+          return base64;
+      }
+
+    async function register() {
+      const username = document.getElementById("username").value;
+      const optionsRes = await fetch("/register/options", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username }),
+      });
+      const publicKeyOptions = await optionsRes.json();
+
+      publicKeyOptions.challenge = Uint8Array.from(atob(base64urlToBase64(publicKeyOptions.challenge)), c => c.charCodeAt(0));
+      publicKeyOptions.user.id = Uint8Array.from(atob(base64urlToBase64(publicKeyOptions.user.id)), c => c.charCodeAt(0));
+
+      const cred = await navigator.credentials.create({ publicKey: publicKeyOptions });
+
+      const response = {
+        id: cred.id,
+        rawId: btoa(String.fromCharCode(...new Uint8Array(cred.rawId))),
+        type: cred.type,
+        response: {
+          clientDataJSON: btoa(String.fromCharCode(...new Uint8Array(cred.response.clientDataJSON))),
+          attestationObject: btoa(String.fromCharCode(...new Uint8Array(cred.response.attestationObject))),
+        }
+      };
+
+      await fetch("/register/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, response }),
+      });
+      alert("Registered!");
+    }
+
+    async function login() {
+      const username = document.getElementById("username").value;
+      const optionsRes = await fetch("/login/options", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username }),
+      });
+      const publicKeyOptions = await optionsRes.json();
+
+      publicKeyOptions.challenge = Uint8Array.from(atob(base64urlToBase64(publicKeyOptions.challenge)), c => c.charCodeAt(0));
+      publicKeyOptions.allowCredentials = publicKeyOptions.allowCredentials.map(cred => ({
+        ...cred,
+        id: Uint8Array.from(atob(cred.id), c => c.charCodeAt(0)),
+      }));
+
+      const assertion = await navigator.credentials.get({ publicKey: publicKeyOptions });
+
+      const response = {
+        id: assertion.id,
+        rawId: btoa(String.fromCharCode(...new Uint8Array(assertion.rawId))),
+        type: assertion.type,
+        response: {
+          clientDataJSON: btoa(String.fromCharCode(...new Uint8Array(assertion.response.clientDataJSON))),
+          authenticatorData: btoa(String.fromCharCode(...new Uint8Array(assertion.response.authenticatorData))),
+          signature: btoa(String.fromCharCode(...new Uint8Array(assertion.response.signature))),
+          userHandle: assertion.response.userHandle ? btoa(String.fromCharCode(...new Uint8Array(assertion.response.userHandle))) : null,
+        }
+      };
+
+      const verifyRes = await fetch("/login/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, response }),
+      });
+      const result = await verifyRes.json();
+      alert(result.status === "ok" ? "Login successful!" : "Login failed.");
+    }
+  </script>
+</body>
+</html>
