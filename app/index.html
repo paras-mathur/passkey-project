@@ -67,7 +67,7 @@
       publicKeyOptions.challenge = Uint8Array.from(atob(base64urlToBase64(publicKeyOptions.challenge)), c => c.charCodeAt(0));
       publicKeyOptions.allowCredentials = publicKeyOptions.allowCredentials.map(cred => ({
         ...cred,
-        id: Uint8Array.from(atob(cred.id), c => c.charCodeAt(0)),
+        id: Uint8Array.from(atob(base64urlToBase64(cred.id)), c => c.charCodeAt(0)),
       }));
 
       const assertion = await navigator.credentials.get({ publicKey: publicKeyOptions });
